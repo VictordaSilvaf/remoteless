@@ -1,0 +1,65 @@
+{
+  "name": "multisession-manager",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22.16.0"
+  },
+  "scripts": {
+    "setup": "node --import tsx scripts/bootstrap.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node scripts/test.mjs unit",
+    "test:integration": "node scripts/test.mjs integration",
+    "build": "node scripts/build.mjs",
+    "desktop:install": "node scripts/install-electron.mjs",
+    "start": "npm run server:up",
+    "dev": "npm run server:up",
+    "server:up": "npm run infra:up",
+    "server:down": "npm run infra:down",
+    "server:status": "npm run infra:status",
+    "server:check": "npm run infra:verify",
+    "doctor": "node --import tsx scripts/preflight.ts",
+    "phase1:verify": "node scripts/phase1.mjs",
+    "phase2:verify": "node scripts/phase1.mjs phase2",
+    "phase0:up": "npm run setup && node scripts/phase0.mjs up",
+    "phase0:down": "node scripts/phase0.mjs down",
+    "phase0:status": "node scripts/phase0.mjs status",
+    "phase0:verify": "npm run setup && node scripts/phase0.mjs verify",
+    "phase0:electron:verify": "node scripts/verify-electron.mjs",
+    "desktop:dev": "npm run desktop:install && npm run build && electron apps/desktop/dist/main.js",
+    "infra:up": "node scripts/start-infra.mjs",
+    "infra:down": "docker compose -p msm-phase1 -f infra/compose/compose.yaml down",
+    "infra:status": "docker compose -p msm-phase1 -f infra/compose/compose.yaml ps",
+    "infra:test:up": "docker compose -p msm-phase1 -f infra/compose/compose.yaml -f infra/compose/testing.yaml up -d --wait",
+    "infra:verify": "node --import tsx scripts/verify-infra.ts",
+    "runner:verify": "docker compose -p msm-phase1 -f infra/compose/compose.yaml --profile isolation run --build --rm runner"
+  },
+  "dependencies": {
+    "bullmq": "6.7.1",
+    "fastify": "5.12.8",
+    "ioredis": "^5.8.0",
+    "libsodium-wrappers-sumo": "0.8.4",
+    "pg": "8.23.1",
+    "playwright": "1.64.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/libsodium-wrappers-sumo": "^0.7.8",
+    "@types/node": "^22.16.0",
+    "@types/pg": "^8.15.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "electron": "45.2.2",
+    "esbuild": "0.28.2",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vite": "8.3.5"
+  }
+}

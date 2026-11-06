@@ -1,0 +1,7 @@
+services:
+  lab:
+    environment:
+      MSM_LAB_DIAGNOSTICS: "1"
+volumes:
+  control:
+    external: false

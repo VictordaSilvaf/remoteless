@@ -1,0 +1,10 @@
+# Linux only: use the checksum-verified host Electron binary in the virtual display.
+# The runner image supplies the native libraries, sandbox profile and current app build.
+services:
+  desktop-check:
+    image: msm-runner:0.1.0
+    build:
+      target: runner
+    entrypoint: [xvfb-run, -a, node]
+    volumes:
+      - ${MSM_ELECTRON_DIST}:/opt/electron:ro

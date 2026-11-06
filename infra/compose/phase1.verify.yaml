@@ -1,0 +1,59 @@
+services:
+  api:
+    ports: !reset []
+    networks: !override [data]
+
+  integration:
+    image: msm-foundation:0.1.0
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    init: true
+    command: [scripts/dist/foundation-container.js]
+    networks: [data]
+    mem_limit: 384m
+    cpus: 1
+    pids_limit: 128
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=32m,uid=1000,gid=1000"]
+    environment:
+      MSM_RUNTIME_DIR: /run/msm-runtime
+      MSM_TEST_DB_HOST: postgres
+      MSM_TEST_DB_PORT: "5432"
+    volumes:
+      - ${MSM_RUNTIME_DIR}/client:/run/msm-runtime/client
+      - ${MSM_RUNTIME_DIR}/server/installation.json:/run/msm-runtime/server/installation.json:ro
+      - ${MSM_RUNTIME_DIR}/secrets:/run/msm-runtime/secrets:ro
+      - ${MSM_VERIFY_ARTIFACT_DIR}:/artifacts
+
+  desktop-check:
+    image: msm-desktop-check:0.1.0
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: desktop-check
+    user: "1000:1000"
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true,"seccomp=../docker/seccomp.runner.json"]
+    pids_limit: 256
+    mem_limit: 1g
+    cpus: 2
+    shm_size: 256m
+    tmpfs: ["/tmp:rw,nosuid,size=256m,uid=1000,gid=1000"]
+    environment:
+      XDG_CONFIG_HOME: /tmp/msm-config
+      XDG_CACHE_HOME: /tmp/msm-cache
+      MSM_VERIFY_WORKSPACE: ${MSM_VERIFY_WORKSPACE:-0}
+    command: [scripts/dist/foundation-electron.js]
+    volumes:
+      - ${MSM_RUNTIME_DIR}/client:/run/msm-runtime/client:ro
+      - ${MSM_VERIFY_ARTIFACT_DIR}:/artifacts
+      - desktop-state:/state
+    networks: [data]
+
+volumes:
+  phase0-control:
+    external: false
+  desktop-state:

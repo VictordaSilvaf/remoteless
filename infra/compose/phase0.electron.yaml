@@ -1,0 +1,29 @@
+name: msm-phase0-electron
+services:
+  desktop-check:
+    image: msm-desktop-check:0.1.0
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: desktop-check
+    user: "1000:1000"
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true,"seccomp=../docker/seccomp.runner.json"]
+    pids_limit: 256
+    mem_limit: 1g
+    cpus: 2
+    shm_size: 256m
+    tmpfs: ["/tmp:rw,nosuid,size=256m,uid=1000,gid=1000"]
+    environment:
+      XDG_CONFIG_HOME: /tmp/msm-config
+      XDG_CACHE_HOME: /tmp/msm-cache
+    volumes:
+      - ../../.runtime/client:/run/msm-runtime/client:ro
+      - ../../.runtime/artifacts/phase0-electron:/artifacts
+    networks: [foundation]
+networks:
+  foundation:
+    external: true
+    name: msm-phase1_data

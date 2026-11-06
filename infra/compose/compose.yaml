@@ -1,0 +1,173 @@
+name: msm-phase1
+x-backend: &backend
+  image: msm-foundation:0.1.0
+  build:
+    context: ../..
+    dockerfile: infra/docker/Dockerfile
+    target: runtime
+  user: "1000:1000"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  init: true
+  pids_limit: 128
+  mem_limit: 384m
+  cpus: 1
+  tmpfs: ["/tmp:rw,noexec,nosuid,size=32m,uid=1000,gid=1000"]
+
+services:
+  postgres:
+    image: postgres:18-alpine@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+    environment:
+      POSTGRES_DB: multisession
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ${MSM_RUNTIME_DIR:-../../.runtime}/secrets/postgres_password:/run/secrets/postgres_password:ro
+    networks: [data]
+    mem_limit: 512m
+    cpus: 1
+    pids_limit: 128
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres -d multisession"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.redis
+    image: msm-redis:0.1.0
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - redis-data:/data
+      - ${MSM_RUNTIME_DIR:-../../.runtime}/secrets/redis_password:/run/secrets/redis_password:ro
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=8m,uid=1000,gid=1000"]
+    networks: [data]
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 64
+    healthcheck:
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$$(cat /run/secrets/redis_password)" redis-cli ping | grep -q PONG']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    <<: *backend
+    command: [scripts/dist/migrate.js]
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      MSM_SERVER_DIR: /run/msm/server
+      MSM_SECRET_DIR: /run/secrets
+    volumes:
+      - ${MSM_RUNTIME_DIR:-../../.runtime}/server/installation.json:/run/msm/server/installation.json:ro
+      - ${MSM_RUNTIME_DIR:-../../.runtime}/secrets/postgres_password:/run/secrets/postgres_password:ro
+      - ${MSM_RUNTIME_DIR:-../../.runtime}/secrets/app_password:/run/secrets/app_password:ro
+    networks: [data]
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+
+  api:
+    <<: *backend
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      MSM_BIND: 0.0.0.0
+      MSM_PORT: "8443"
+      MSM_MAX_ACCOUNTS: ${MSM_MAX_ACCOUNTS:-500}
+      MSM_PROXY_PROBE_URL: ${MSM_PROXY_PROBE_URL:-https://api64.ipify.org?format=json}
+      MSM_SERVER_DIR: /run/msm/server
+      MSM_SECRET_DIR: /run/secrets
+    volumes:
+      - ${MSM_RUNTIME_DIR:-../../.runtime}/server:/run/msm/server:ro
+      - phase0-control:/run/msm/lab:ro
+      - ${MSM_RUNTIME_DIR:-../../.runtime}/secrets/app_password:/run/secrets/app_password:ro
+      - ${MSM_RUNTIME_DIR:-../../.runtime}/secrets/redis_password:/run/secrets/redis_password:ro
+    ports: ["127.0.0.1:17643:8443"]
+    networks: [data, edge]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, node, infra/docker/health.mjs]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+    restart: "on-failure:3"
+
+  fixture:
+    <<: *backend
+    profiles: [isolation]
+    command: [infra/docker/fixture.mjs]
+    networks: [fixture]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8080').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  gateway:
+    <<: *backend
+    profiles: [isolation]
+    command: [infra/docker/gateway-fixture.mjs]
+    volumes: ["group-a-proxy:/proxy"]
+    networks: [fixture]
+    depends_on:
+      fixture: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, node, -e, "require('node:fs').accessSync('/tmp/gateway-ready')"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  runner:
+    profiles: [isolation]
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: runner
+    image: msm-runner:0.1.0
+    user: "1000:1000"
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=../docker/seccomp.runner.json
+    init: true
+    pids_limit: 256
+    mem_limit: 1g
+    cpus: 2
+    shm_size: 256m
+    tmpfs: ["/tmp:rw,nosuid,size=192m,uid=1000,gid=1000"]
+    environment:
+      MSM_GROUP_ID: 00000000-0000-4000-8000-000000000001
+      XDG_CONFIG_HOME: /tmp/msm-config
+      XDG_CACHE_HOME: /tmp/msm-cache
+    volumes: ["group-a-proxy:/proxy:ro"]
+    depends_on:
+      gateway: {condition: service_healthy}
+    restart: "no"
+
+networks:
+  data: {internal: true}
+  edge: {}
+  fixture: {internal: true}
+volumes:
+  postgres-data:
+  redis-data:
+  group-a-proxy:
+  phase0-control:
+    name: ${MSM_LAB_CONTROL_VOLUME:-msm-phase0_control}
+    external: true

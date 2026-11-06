@@ -1,0 +1,9 @@
+services:
+  desktop-check:
+    image: msm-runner:0.1.0
+    build:
+      target: runner
+    entrypoint: [xvfb-run, -a, node]
+    command: [apps/session-lab/dist/electron-verify.js]
+    volumes:
+      - ${MSM_ELECTRON_DIST}:/opt/electron:ro
