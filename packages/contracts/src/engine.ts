@@ -1,6 +1,7 @@
 import {z} from 'zod';
 
 const id=z.uuid();
+export const engineReadSchema=z.object({campaignId:id.optional(),offset:z.coerce.number().int().min(0).max(10000).default(0),limit:z.coerce.number().int().min(1).max(100).default(50)}).strict();
 export const engineStepSchema=z.object({kind:z.enum(['account.inspect','proxy.probe'])}).strict();
 export type EngineStep=z.infer<typeof engineStepSchema>;
 export const actionStates=['WAITING_PREDECESSOR','SCHEDULED','READY','LEASED','RUNNING','VERIFYING','SUCCEEDED','RETRY_WAIT','RECONCILING','UNKNOWN','FAILED','CANCELLED','EXPIRED','ABANDONED'] as const;
@@ -23,6 +24,6 @@ export interface ExecutionPlan {id:string;hash:string;token:string;expiresAt:str
 export interface CampaignRecord {id:string;name:string;state:'QUEUED'|'RUNNING'|'SUCCEEDED'|'PARTIAL'|'CANCELLED'|'BLOCKED';mode:string;version:number;createdAt:string;deadline:string;cancelRequested:boolean;counts:Partial<Record<ActionState,number>>;}
 export interface ActionRecord {id:string;accountId:string;alias:string;campaignId:string;step:number;kind:string;state:ActionState;version:number;attempts:number;earliestStart:string;deadline:string;cancelRequested:boolean;reason:string|null;epoch:number;}
 export interface TransitionRecord {id:string;actionId:string;from:ActionState|null;to:ActionState;version:number;reason:string;createdAt:string;}
-export interface EngineSnapshot {recipes:RecipeRecord[];campaigns:CampaignRecord[];actions:ActionRecord[];transitions:TransitionRecord[];total:number;offset:number;limit:number;metrics:{pending:number;inFlight:number;uncertain:number;outboxPending:number};engine:{available:boolean;lastTickAt:string|null;queue:'healthy'|'unavailable';concurrency:number};}
+export interface EngineSnapshot {recipes:RecipeRecord[];campaigns:CampaignRecord[];actions:ActionRecord[];transitions:TransitionRecord[];total:number;offset:number;limit:number;metrics:{pending:number;inFlight:number;uncertain:number;outboxPending:number};engine:{available:boolean;lastTickAt:string|null;queue:'healthy'|'unavailable';concurrency:number;lastError:string|null};}
 export interface EngineResult {snapshot?:EngineSnapshot;recipe?:RecipeRecord;plan?:ExecutionPlan;campaignId?:string;}
 export interface EnginePort {run(command:EngineCommand):Promise<EngineResult>;}

@@ -5,6 +5,7 @@ import {chromium,type Browser,type Page} from 'playwright';
 import {LocalClient} from '../apps/desktop/src/main/client.js';
 import {installationBridge} from './support/tls-bridge.js';
 import {verifyWorkspace} from './support/workspace-desktop.js';
+import {verifyEngine} from './support/engine-desktop.js';
 
 const stage=process.env.MSM_VERIFY_STAGE??'prepare';
 if(!['prepare','restore'].includes(stage))throw Error('INVALID_VERIFICATION_STAGE');
@@ -36,7 +37,7 @@ try {
   const security=await page.evaluate(()=>({flags:window.multisession.security,require:typeof (window as unknown as {require?:unknown}).require,process:typeof (window as unknown as {process?:unknown}).process,methods:Object.keys(window.multisession).sort()}));
   assert.deepEqual(security.flags,{sandboxed:true,contextIsolated:true});
   assert.equal(security.require,'undefined');assert.equal(security.process,'undefined');
-  assert.deepEqual(security.methods,['connect','lab','lockVault','security','status','unlockVault','workspace']);
+  assert.deepEqual(security.methods,['connect','engine','lab','lockVault','security','status','unlockVault','workspace']);
   cases.push('real-electron-mutual-tls-and-restricted-preload');
   await page.getByRole('button',{name:'Desbloquear cofre',exact:true}).click();
   await page.getByRole('alert').filter({hasText:'Informe uma senha'}).waitFor();
@@ -70,6 +71,7 @@ try {
   assert.equal((await stat(keyFile)).mode&0o077,0);
   cases.push(stage==='prepare'?'encrypted-key-enrolment-through-ui':'same-key-restored-after-api-and-desktop-restart');
   if(stage==='restore'&&process.env.MSM_VERIFY_WORKSPACE==='1')await verifyWorkspace(page,client);
+  if(stage==='restore'&&process.env.MSM_VERIFY_ENGINE==='1')await verifyEngine(page,client);
   await page.screenshot({path:`/artifacts/desktop-${stage}.png`,fullPage:true});
   if(stage==='restore') {
     await page.getByRole('button',{name:'Bloquear cofre',exact:true}).click();

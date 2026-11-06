@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { foundationSchema, peerSchema, type FoundationStatus, type Peer } from '@msm/contracts';
 import {labCommandSchema,uuidSchema,type LabCommand,type LabStatus,type LabResult,type LabFrame} from '@msm/contracts';
 import {workspaceCommandSchema,type WorkspaceCommand,type WorkspaceResult} from '@msm/contracts';
+import {engineCommandSchema,type EngineCommand,type EngineResult} from '@msm/contracts';
 
 const connectionSchema = z.object({installationId: z.uuid(), tenantId: z.uuid(), apiOrigin: z.url()}).strict();
 export class LocalClient {
@@ -28,7 +29,7 @@ export class LocalClient {
         let size = 0;
         response.on('data', (chunk: Buffer) => {
           size += chunk.length;
-          if (size > (path.startsWith('/v1/lab/frame/')||path==='/v1/workspace/command'?2_000_000:128*1024)) { response.destroy(); reject(new Error('RESPONSE_TOO_LARGE')); return; }
+          if (size > (path.startsWith('/v1/lab/frame/')||path==='/v1/workspace/command'||path.startsWith('/v1/engine/')?2_000_000:128*1024)) { response.destroy(); reject(new Error('RESPONSE_TOO_LARGE')); return; }
           chunks.push(chunk);
         });
         response.on('error', () => reject(new Error('BACKEND_UNAVAILABLE')));
@@ -40,7 +41,7 @@ export class LocalClient {
           } catch { reject(new Error('INVALID_BACKEND_RESPONSE')); }
         });
       });
-      req.setTimeout(path==='/v1/workspace/command'?30000:5000, () => req.destroy(new Error('BACKEND_TIMEOUT')));
+      req.setTimeout(path==='/v1/workspace/command'||path==='/v1/engine/command'?30000:5000, () => req.destroy(new Error('BACKEND_TIMEOUT')));
       req.on('error', () => reject(new Error('BACKEND_UNAVAILABLE')));
       req.end(encoded);
     });
@@ -61,5 +62,13 @@ export class LocalClient {
   async labCommand(command:LabCommand){return await this.call('POST','/v1/lab/command',labCommandSchema.parse(command)) as LabResult;}
   async labFrame(id:string){return await this.call('GET',`/v1/lab/frame/${uuidSchema.parse(id)}`) as LabFrame|null;}
   async workspace(command:WorkspaceCommand){return await this.call('POST','/v1/workspace/command',workspaceCommandSchema.parse(command)) as WorkspaceResult;}
+  async engine(command:EngineCommand){
+    const parsed=engineCommandSchema.parse(command);
+    if(parsed.kind==='get'){
+      const query=new URLSearchParams({offset:String(parsed.offset),limit:String(parsed.limit),...(parsed.campaignId?{campaignId:parsed.campaignId}:{})});
+      return await this.call('GET',`/v1/engine/status?${query}`) as EngineResult;
+    }
+    return await this.call('POST','/v1/engine/command',parsed) as EngineResult;
+  }
   dispose(): void { this.#agent?.destroy(); }
 }

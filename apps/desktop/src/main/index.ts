@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, protocol, net, session } from 'electron';
 import { resolve, dirname, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {mkdirSync} from 'node:fs';
-import { IPC, desktopUnlockSchema,labCommandSchema,uuidSchema,workspaceCommandSchema } from '@msm/contracts';
+import { IPC, desktopUnlockSchema,labCommandSchema,uuidSchema,workspaceCommandSchema,engineCommandSchema } from '@msm/contracts';
 import { encode, wipe } from '@msm/crypto';
 import { LocalClient } from './client.js';
 import { deviceRoot } from './device-vault.js';
@@ -54,6 +54,7 @@ else {
   ipcMain.handle(IPC.labCommand,(event,input:unknown)=>{authorize(event);return client.labCommand(labCommandSchema.parse(input));});
   ipcMain.handle(IPC.labFrame,(event,input:unknown)=>{authorize(event);return client.labFrame(uuidSchema.parse(input));});
   ipcMain.handle(IPC.workspace,(event,input:unknown)=>{authorize(event);return client.workspace(workspaceCommandSchema.parse(input));});
+  ipcMain.handle(IPC.engine,(event,input:unknown)=>{authorize(event);return client.engine(engineCommandSchema.parse(input));});
   app.on('second-instance', () => { if (window.isMinimized()) window.restore(); window.focus(); });
   app.on('before-quit', () => { client.dispose(); });
   await window.loadURL('msm://app/');

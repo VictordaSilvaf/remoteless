@@ -2,7 +2,7 @@ import Fastify, { LogController } from 'fastify';
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { TLSSocket } from 'node:tls';
 import { ZodError } from 'zod';
-import { PROTOCOL_VERSION, pairRequestSchema, vaultUnlockSchema, type FoundationStatus } from '@msm/contracts';
+import { PROTOCOL_VERSION, pairRequestSchema, vaultUnlockSchema,engineReadSchema, type FoundationStatus } from '@msm/contracts';
 import { Vault, decode, wipe } from '@msm/crypto';
 import type { Ciphertext } from '@msm/contracts';
 import { withTenant, type Pool } from '@msm/database';
@@ -11,6 +11,9 @@ import type {LabClient} from '../../session-lab/src/client.js';
 import {WorkspaceService} from './workspace/service.js';
 import {WorkspaceError} from './workspace/errors.js';
 import type {NetworkPolicy} from './workspace/network.js';
+import {EngineService} from './engine/service.js';
+import {defaultAdapters} from './engine/default-adapters.js';
+import type {AdapterRegistry} from './engine/adapters.js';
 
 export interface Installation {
   installationId: string; tenantId: string; clientFingerprint: string;
@@ -25,6 +28,9 @@ export interface Dependencies {
   maxAccounts?:number;
   workspaceNetwork?:NetworkPolicy;
   proxyProbeUrl?:string;
+  /** Trusted process injection only; never configurable through HTTP. */
+  engineAdapters?:AdapterRegistry;
+  engineNow?:()=>number;
   https?: {key: Buffer; cert: Buffer; ca: Buffer; requestCert: boolean; rejectUnauthorized: boolean};
   /** Only supplied by in-process tests. Production always reads the TLS socket. */
   testPeer?: () => string | undefined;
@@ -41,9 +47,11 @@ export function createApp(deps: Dependencies) {
   });
   const {installation: identity, pool} = deps;
   const workspace=new WorkspaceService({pool,vault:deps.vault,tenantId:identity.tenantId,actorId:identity.installationId,...(deps.maxAccounts===undefined?{}:{maxAccounts:deps.maxAccounts}),...(deps.workspaceNetwork?{network:deps.workspaceNetwork}:{}),...(deps.proxyProbeUrl?{probeUrl:deps.proxyProbeUrl}:{})});
+  const engine=new EngineService({pool,tenantId:identity.tenantId,actorId:identity.installationId,adapters:deps.engineAdapters??defaultAdapters({pool,tenantId:identity.tenantId,vault:deps.vault,network:deps.workspaceNetwork,probeUrl:deps.proxyProbeUrl}),now:deps.engineNow});
   let windowStart = Date.now();
   let requests = 0;
   let frameWindow=Date.now(),frameRequests=0;
+  let engineReadWindow=Date.now(),engineReads=0;
   const paired = () => withTenant(pool, identity.tenantId, async db => {
     const result = await db.query('SELECT 1 FROM app.device_pairings WHERE id = $1 AND certificate_fingerprint = $2', [identity.installationId, identity.clientFingerprint]);
     return result.rowCount === 1;
@@ -58,7 +66,10 @@ export function createApp(deps: Dependencies) {
     const host = request.headers.host?.split(':')[0];
     if (!['127.0.0.1', 'localhost', 'api'].includes(host ?? '')) throw new HttpError(403, 'HOST_FORBIDDEN');
     if (peer !== identity.clientFingerprint) throw new HttpError(403, 'INSTALLATION_FORBIDDEN');
-    if(request.url.startsWith('/v1/lab/frame/')||request.url==='/v1/lab/status'){
+    if(request.method==='GET'&&request.url.split('?')[0]==='/v1/engine/status'){
+      if(Date.now()-engineReadWindow>1000){engineReadWindow=Date.now();engineReads=0;}
+      if(++engineReads>20)throw new HttpError(429,'RATE_LIMITED');
+    }else if(request.url.startsWith('/v1/lab/frame/')||request.url==='/v1/lab/status'){
       if(Date.now()-frameWindow>1000){frameWindow=Date.now();frameRequests=0;}
       if(++frameRequests>40)throw new HttpError(429,'RATE_LIMITED');
     }else{
@@ -82,13 +93,15 @@ export function createApp(deps: Dependencies) {
   });
   app.get('/v1/session', async () => ({installationId: identity.installationId, tenantId: identity.tenantId, protocolVersion: PROTOCOL_VERSION}));
   app.post('/v1/workspace/command',{bodyLimit:1_048_576},request=>workspace.run(request.body,request.id));
+  app.post('/v1/engine/command',{bodyLimit:131072},request=>engine.run(request.body,request.id));
+  app.get('/v1/engine/status',request=>engine.run({kind:'get',...engineReadSchema.parse(request.query)},request.id));
   const lab=()=>{if(!deps.lab)throw new HttpError(503,'LAB_UNAVAILABLE');return deps.lab;};
   app.get('/v1/lab/status',()=>lab().status());
   app.post('/v1/lab/command',request=>lab().command(labCommandSchema.parse(request.body)));
   app.get('/v1/lab/frame/:accountId',request=>lab().frame(uuidSchema.parse((request.params as {accountId:string}).accountId)));
   const foundation = async (): Promise<FoundationStatus> => {
     const checks = await Promise.allSettled([pool.query('SELECT 1'), deps.redis.ping()]);
-    return {protocolVersion: PROTOCOL_VERSION, database: checks[0].status === 'fulfilled' ? 'healthy' : 'unavailable', redis: checks[1].status === 'fulfilled' ? 'healthy' : 'unavailable', vault: deps.vault.unlocked ? 'healthy' : 'locked', paired: true, schemaVersion: 2};
+    return {protocolVersion: PROTOCOL_VERSION, database: checks[0].status === 'fulfilled' ? 'healthy' : 'unavailable', redis: checks[1].status === 'fulfilled' ? 'healthy' : 'unavailable', vault: deps.vault.unlocked ? 'healthy' : 'locked', paired: true, schemaVersion: 3};
   };
   app.get('/v1/foundation', foundation);
   app.get('/ready', async (_request, reply) => {
@@ -136,5 +149,5 @@ export function createApp(deps: Dependencies) {
     reply.code(status).send({error: {code, message: 'Não foi possível concluir a solicitação.', requestId: request.id}});
   });
   app.addHook('onClose', async () => deps.vault.lock());
-  return app;
+  return Object.assign(app,{executionEngine:engine});
 }

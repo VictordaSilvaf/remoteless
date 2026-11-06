@@ -36,7 +36,7 @@ export function schedule(plan:PlanSnapshot,past:{kind:string;id:string;offset:nu
       for(let guard=0;guard<20001;guard++){
         let next=start;
         for(const scope of scopes){const busy=slots.get(scope.key)??Array(scope.concurrency).fill(0);next=Math.max(next,Math.min(...busy));}
-        for(const key of limits){const within=(quota.get(key)??[]).filter(t=>t>start-3600&&t<=start);if(within.length>=target.policy.maxActionsHour)next=Math.max(next,within[within.length-target.policy.maxActionsHour]!+3600);}
+        for(const key of limits){const within=(quota.get(key)??[]).filter(t=>t>start-3600);if(within.length>=target.policy.maxActionsHour)next=Math.max(next,within[within.length-target.policy.maxActionsHour]!+3600);}
         if(next===start)break;
         start=next;
         if(guard===20000)throw new WorkspaceError('PLAN_CAPACITY_EXCEEDED');

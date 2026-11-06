@@ -4,6 +4,7 @@ import { IPC, type DesktopBridge } from '@msm/contracts';
 const bridge: DesktopBridge = Object.freeze({
   security:Object.freeze({sandboxed:process.sandboxed??false,contextIsolated:process.contextIsolated??false}),
   workspace:Object.freeze({run:(command:Parameters<DesktopBridge['workspace']['run']>[0])=>ipcRenderer.invoke(IPC.workspace,command)}),
+  engine:Object.freeze({run:(command:Parameters<DesktopBridge['engine']['run']>[0])=>ipcRenderer.invoke(IPC.engine,command)}),
   lab:Object.freeze({status:()=>ipcRenderer.invoke(IPC.labStatus),command:(command:Parameters<DesktopBridge['lab']['command']>[0])=>ipcRenderer.invoke(IPC.labCommand,command),frame:(id:string)=>ipcRenderer.invoke(IPC.labFrame,id)}),
   connect: () => ipcRenderer.invoke(IPC.connect),
   status: () => ipcRenderer.invoke(IPC.status),

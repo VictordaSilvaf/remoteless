@@ -26,6 +26,7 @@
     "doctor": "node --import tsx scripts/preflight.ts",
     "phase1:verify": "node scripts/phase1.mjs",
     "phase2:verify": "node scripts/phase1.mjs phase2",
+    "phase3:verify": "node scripts/phase1.mjs phase3",
     "phase0:up": "npm run setup && node scripts/phase0.mjs up",
     "phase0:down": "node scripts/phase0.mjs down",
     "phase0:status": "node scripts/phase0.mjs status",

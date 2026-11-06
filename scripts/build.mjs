@@ -12,8 +12,10 @@ await build({entryPoints: ['scripts/migrate.ts'], outfile: 'scripts/dist/migrate
 for (const name of ['foundation-container','foundation-electron']) {
   await build({entryPoints:[`scripts/${name}.ts`],outfile:`scripts/dist/${name}.js`,bundle:true,platform:'node',format:'esm',packages:'external',alias,target:'node22'});
 }
+await build({entryPoints:['scripts/support/engine-crash-worker.ts'],outfile:'scripts/dist/engine-crash-worker.js',bundle:true,platform:'node',format:'esm',packages:'external',alias,target:'node22'});
 await build({entryPoints:['tests/integration/foundation.test.ts'],outfile:'scripts/dist/foundation-integration.test.js',bundle:true,platform:'node',format:'esm',packages:'external',alias,target:'node22'});
 await build({entryPoints:['tests/integration/workspace.test.ts'],outfile:'scripts/dist/workspace-integration.test.js',bundle:true,platform:'node',format:'esm',packages:'external',alias,target:'node22'});
+await build({entryPoints:['tests/integration/engine.test.ts'],outfile:'scripts/dist/engine-integration.test.js',bundle:true,platform:'node',format:'esm',packages:'external',alias,target:'node22'});
 await build({entryPoints: ['apps/desktop/src/main/index.ts'], outfile: 'apps/desktop/dist/main.js', bundle: true, platform: 'node', format: 'esm', packages: 'external', alias, target: 'node22'});
 await build({entryPoints: ['apps/desktop/src/preload/index.ts'], outfile: 'apps/desktop/dist/preload.cjs', bundle: true, platform: 'node', format: 'cjs', external: ['electron'], target: 'node22'});
 await viteBuild({root: 'apps/desktop/src/renderer', base: './', build: {outDir: '../../dist/renderer', emptyOutDir: true}});

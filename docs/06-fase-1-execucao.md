@@ -21,7 +21,7 @@ Esta é a primeira entrega executável da fundação. O servidor de desenvolvime
 
 O cofre está no processo da API nesta primeira entrega; as primitivas ficam em pacote separado. Runners não recebem chave mestra, credenciais de banco ou Redis. A extração do cofre para serviço próprio e capacidades de execução entram quando o motor de sessões for implementado. O Main conecta ao backend iniciado pelo operador; o supervisor automático/instalador completo ainda é trabalho posterior.
 
-A identidade local pareada representa **uma instalação de desenvolvimento**, não o login comercial de usuários nem um serviço remoto compartilhado pronto para produção. As tabelas de grupos/sites/contas são a base de persistência; seus endpoints de produto chegam na fase 2. A outbox existe no schema, mas dispatcher, BullMQ e execução de campanhas chegam na fase 3.
+A identidade local pareada representa **uma instalação de desenvolvimento**, não o login comercial de usuários nem um serviço remoto compartilhado pronto para produção. As tabelas de grupos/sites/contas são a base de persistência; seus endpoints de produto foram implementados na fase 2. Dispatcher, BullMQ e campanhas duráveis foram implementados na [fase 3](09-fase-3-motor-duravel.md); conexão com sessões de produção entra na fase 4.
 
 ## 6.2 Iniciar e verificar o backend no servidor
 

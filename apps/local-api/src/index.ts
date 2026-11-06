@@ -5,6 +5,7 @@ import { Pool } from '@msm/database';
 import { Vault, cryptoReady } from '@msm/crypto';
 import { createApp, type Installation } from './app.js';
 import {LabClient} from '../../session-lab/src/client.js';
+import {EngineRuntime} from './engine/runtime.js';
 
 await cryptoReady();
 const runtime = resolve(process.env.MSM_RUNTIME_DIR ?? '.runtime');
@@ -23,6 +24,8 @@ const app = createApp({pool, redis, vault: new Vault(), installation,lab,maxAcco
 await pool.query('SELECT 1');
 await redis.connect();
 await redis.ping();
-app.addHook('onClose', async () => { redis.disconnect(); await pool.end(); });
+const engineRuntime=new EngineRuntime(app.executionEngine,{host:process.env.REDIS_HOST??'127.0.0.1',port:Number(process.env.REDIS_PORT??16379),password:(await readFile(`${secretDir}/redis_password`,'utf8')).trim(),connectTimeout:3000,commandTimeout:5000},(phase,code)=>app.log.error({phase,code},'Execution engine operation failed'));
+engineRuntime.start();
+app.addHook('onClose', async () => { await engineRuntime.close();redis.disconnect(); await pool.end(); });
 for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => { void app.close(); });
 await app.listen({host: process.env.MSM_BIND ?? '127.0.0.1', port: Number(process.env.MSM_PORT ?? 17643)});

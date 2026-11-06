@@ -4,12 +4,12 @@ import {createHash,randomBytes} from 'node:crypto';
 import {mkdir,readFile,readdir,writeFile,rm} from 'node:fs/promises';
 import {resolve} from 'node:path';
 
-const phase=process.argv[2]==='phase2'?'phase2':'phase1';
+const phase=['phase2','phase3'].includes(process.argv[2])?process.argv[2]:'phase1';
 const project=`msm-${phase}-check-${randomBytes(4).toString('hex')}`;
 const runtime=resolve(`.runtime/checks/${project}`);
 const artifacts=resolve(`.runtime/artifacts/${project}`);
 await mkdir(artifacts,{recursive:true,mode:0o700});
-const env={...process.env,MSM_RUNTIME_DIR:runtime,MSM_LAB_CONTROL_VOLUME:`${project}_control`,MSM_VERIFY_ARTIFACT_DIR:artifacts,MSM_VERIFY_WORKSPACE:phase==='phase2'?'1':'0',MSM_MAX_ACCOUNTS:'500'};
+const env={...process.env,MSM_RUNTIME_DIR:runtime,MSM_LAB_CONTROL_VOLUME:`${project}_control`,MSM_VERIFY_ARTIFACT_DIR:artifacts,MSM_VERIFY_WORKSPACE:phase!=='phase1'?'1':'0',MSM_VERIFY_ENGINE:phase==='phase3'?'1':'0',MSM_MAX_ACCOUNTS:'500'};
 const compose=['compose','-p',project,'-f','infra/compose/compose.yaml','-f','infra/compose/phase1.verify.yaml','--profile','isolation'];
 if(process.platform==='linux'){
   env.MSM_ELECTRON_DIST=resolve('node_modules/electron/dist');
@@ -63,7 +63,7 @@ try {
   await docker('api-restart',['restart','api']);
   await docker('api-ready',['up','-d','--no-build','--wait','api']);
   await docker('desktop-restore',['run','--no-deps','--rm','-e','MSM_VERIFY_STAGE=restore','desktop-check']);
-  const reports=await Promise.all(['integration','desktop-prepare','desktop-restore',...(phase==='phase2'?['workspace']:[])].map(async name=>JSON.parse(await readFile(`${artifacts}/${name}.json`,'utf8'))));
+  const reports=await Promise.all(['integration','desktop-prepare','desktop-restore',...(phase!=='phase1'?['workspace']:[]),...(phase==='phase3'?['engine']:[])].map(async name=>JSON.parse(await readFile(`${artifacts}/${name}.json`,'utf8'))));
   assert.ok(reports.every(report=>report.passed));
   passed=true;
 } catch(error) {
@@ -74,7 +74,7 @@ try {
   try {await docker('cleanup',['down','--volumes','--remove-orphans']);await rm(runtime,{recursive:true,force:true});}
   catch(error){passed=false;process.exitCode=1;failure??=error instanceof Error?error.message:'CLEANUP_FAILED';}
   for(const signal of ['SIGINT','SIGTERM'])process.removeListener(signal,stop);
-  const report={schemaVersion:1,phase,passed:passed&&!interrupted,createdAt:new Date().toISOString(),environment:{platform:process.platform,arch:process.arch,node:process.version},project,artifactDirectory:artifacts,steps,...(failure?{failure}:{}),scope:{realPostgres:true,realRedis:true,mutualTls:true,chromiumSandbox:true,electronXvfb:true,apiProcessRestart:true,isolatedVolumes:true,hostPortsPublished:false,workspaceUi:phase==='phase2'},limitations:['Validated on this Linux server only; Windows/macOS native vaults and installers need platform certification.',phase==='phase2'?'Registration and proxy diagnostics are verified; production session ownership, durable automation and licensing belong to later phases.':'This foundation does not implement durable automation queues or commercial licensing.']};
+  const report={schemaVersion:1,phase,passed:passed&&!interrupted,createdAt:new Date().toISOString(),environment:{platform:process.platform,arch:process.arch,node:process.version},project,artifactDirectory:artifacts,steps,...(failure?{failure}:{}),scope:{realPostgres:true,realRedis:true,mutualTls:true,chromiumSandbox:true,electronXvfb:true,apiProcessRestart:true,isolatedVolumes:true,hostPortsPublished:false,workspaceUi:phase!=='phase1',durableEngine:phase==='phase3'},limitations:['Validated on this Linux server only; Windows/macOS native vaults and installers need platform certification.',phase==='phase3'?'Durable campaigns execute registry/proxy diagnostics. Browser adapters, live session ownership and licensing belong to subsequent phases.':'Production browser automation and licensing belong to subsequent phases.']};
   await writeFile(`${artifacts}/report.json`,JSON.stringify(report,null,2),{mode:0o600});
   // Always publish the latest outcome; a failed run must not leave a stale green result.
   await writeFile(`.runtime/artifacts/${phase}-latest.json`,JSON.stringify(report,null,2),{mode:0o600});

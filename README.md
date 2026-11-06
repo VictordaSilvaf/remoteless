@@ -1,10 +1,10 @@
 # MultiSession Manager
 
-**Aplicação:** 0.1.0 · **Especificação:** 1.1 · **Estado:** fases 0, 1 e 2 implementadas nos escopos de laboratório, fundação e cadastro/proxies, validadas em Linux arm64.
+**Aplicação:** 0.1.0 · **Especificação:** 1.1 · **Estado:** fases 0, 1, 2 e 3 implementadas nos escopos de laboratório, fundação, cadastro/proxies e motor durável de campanhas. Validação em Linux arm64.
 
 Especificação de um aplicativo Electron por assinatura para administrar até 500 contas em sites selecionados pelo cliente, visualizar de uma a quatro contas e executar rotinas com isolamento, confirmação e recuperação de falhas. O núcleo oferece navegação e sessões genéricas; automações e diagnósticos avançados dependem das capacidades configuradas para cada site.
 
-O repositório contém a especificação, a fundação, o cadastro e um laboratório funcional: API com TLS mútuo, PostgreSQL com RLS, Redis, cofre, Electron, CRUD de contas/grupos/sites/proxies, importação com revisão e prova de quatro sessões com streaming, espelhamento e receitas em contas fictícias. Posse de sessões de produção, filas duráveis, visualização integrada dessas contas e integrações de automação pertencem às próximas fases. Metas da especificação não devem ser confundidas com os resultados medidos nas fixtures.
+O repositório contém API com TLS mútuo, PostgreSQL com RLS, Redis/BullMQ, cofre, Electron, CRUD de contas/grupos/sites/proxies, importação com revisão, campanhas com simulação/confirmação e recuperação durável, além de um laboratório de quatro sessões com streaming e espelhamento. As campanhas de produção desta fase conferem cadastro e diagnosticam proxies. Posse de sessões de produção, visualização integrada dessas contas e execução de ações nos sites entram na fase 4. Metas da especificação não devem ser confundidas com os resultados medidos nas fixtures.
 
 ## Executar no servidor, sem interface gráfica
 
@@ -30,6 +30,8 @@ Para repetir o gate completo da fundação, execute `npm run phase1:verify`. Ele
 
 Para validar também o cadastro, execute `npm run phase2:verify`. Inclui importação de 500 linhas, concorrência de limites, protocolos de proxy reais em fixtures locais e nove fluxos da interface Electron. No aplicativo, conecte/desbloqueie o cofre e escolha **Abrir cadastro**. Consulte o [guia da fase 2](docs/08-fase-2-cadastro-e-proxies.md).
 
+Para validar o motor durável, execute `npm run phase3:verify`. Acrescenta planejamento, confirmação idempotente, ordem por conta, quotas, cancelamento, interrupção real do processo, reconciliação de efeitos e reconstrução da fila. No aplicativo, escolha **Abrir campanhas**. Consulte o [guia da fase 3](docs/09-fase-3-motor-duravel.md).
+
 ## Laboratório da fase 0
 
 ```bash
@@ -50,6 +52,7 @@ São testados login, storages, quatro painéis, espelhamento, canvas, receitas e
 6. [Execução da fase 1](docs/06-fase-1-execucao.md) — código implementado, comandos para servidor/cliente, validação, certificados e limitações desta entrega.
 7. [Laboratório da fase 0](docs/07-fase-0-laboratorio.md) — login, quatro painéis, streaming, receitas, benchmark e testes headless.
 8. [Cadastro e proxies da fase 2](docs/08-fase-2-cadastro-e-proxies.md) — contas/grupos/sites, importação com revisão, limites transacionais e diagnóstico de proxies reais.
+9. [Motor durável da fase 3](docs/09-fase-3-motor-duravel.md) — receitas versionadas, planejamento, campanhas, outbox, execução ordenada e recuperação sem repetir efeitos incertos.
 
 ## Decisões que orientam o projeto
 

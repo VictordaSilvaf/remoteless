@@ -32,7 +32,7 @@ CREATE TABLE app.action_intents (
  step_no integer NOT NULL CHECK(step_no>=0), depends_on_id uuid, previous_execution_id uuid, dispatch_seq bigint, execution_epoch integer,
  spec jsonb NOT NULL, adapter_version text NOT NULL, replay_safe boolean NOT NULL, snapshot jsonb NOT NULL,
  state text NOT NULL CHECK(state IN ('WAITING_PREDECESSOR','SCHEDULED','READY','LEASED','RUNNING','VERIFYING','SUCCEEDED','RETRY_WAIT','RECONCILING','UNKNOWN','FAILED','CANCELLED','EXPIRED','ABANDONED')),
- version integer NOT NULL DEFAULT 1, earliest_start timestamptz NOT NULL, deadline timestamptz NOT NULL,
+ version integer NOT NULL DEFAULT 1, earliest_start timestamptz NOT NULL, latest_start timestamptz NOT NULL, deadline timestamptz NOT NULL,
  attempt_count integer NOT NULL DEFAULT 0, lease_owner uuid, lease_token_hash text, lease_epoch integer NOT NULL DEFAULT 0, lease_expires_at timestamptz,
  cancel_requested_at timestamptz, reason text, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
  PRIMARY KEY(tenant_id,id), UNIQUE(tenant_id,campaign_id,account_id,step_no), UNIQUE(tenant_id,account_id,id), UNIQUE(tenant_id,campaign_id,account_id,id),
@@ -48,6 +48,8 @@ CREATE TABLE app.action_attempts (
  started_at timestamptz NOT NULL DEFAULT now(), effect_sent_at timestamptz, finished_at timestamptz, outcome text, evidence jsonb,
  PRIMARY KEY(tenant_id,id), UNIQUE(tenant_id,action_id,attempt_no), FOREIGN KEY(tenant_id,action_id) REFERENCES app.action_intents(tenant_id,id)
 );
+ALTER TABLE app.execution_heads ADD FOREIGN KEY(tenant_id,account_id,current_action_id) REFERENCES app.action_intents(tenant_id,account_id,id),
+ ADD FOREIGN KEY(tenant_id,account_id,last_action_id) REFERENCES app.action_intents(tenant_id,account_id,id);
 CREATE TABLE app.action_transitions (
  tenant_id uuid NOT NULL, id uuid NOT NULL, action_id uuid NOT NULL, from_state text, to_state text NOT NULL, action_version integer NOT NULL, reason text NOT NULL,
  created_at timestamptz NOT NULL DEFAULT now(), PRIMARY KEY(tenant_id,id), UNIQUE(tenant_id,action_id,action_version),
@@ -61,6 +63,7 @@ CREATE TABLE app.quota_reservations (
 ALTER TABLE app.outbox_events ADD COLUMN publish_attempts integer NOT NULL DEFAULT 0, ADD COLUMN last_published_at timestamptz;
 CREATE INDEX engine_due ON app.action_intents(tenant_id,state,earliest_start);
 CREATE INDEX engine_account_order ON app.action_intents(tenant_id,account_id,created_at,campaign_id,step_no);
+CREATE UNIQUE INDEX engine_dispatch_sequence ON app.action_intents(tenant_id,account_id,execution_epoch,dispatch_seq) WHERE dispatch_seq IS NOT NULL;
 CREATE INDEX quota_window ON app.quota_reservations(tenant_id,scope_kind,scope_id,reserved_at);
 CREATE INDEX engine_expired_leases ON app.action_intents(lease_expires_at) WHERE state IN ('LEASED','RUNNING','VERIFYING');
 DO $policies$
@@ -76,3 +79,22 @@ GRANT SELECT,INSERT,UPDATE ON app.recipes,app.execution_plans,app.campaigns,app.
 GRANT SELECT,INSERT ON app.recipe_versions,app.action_transitions TO msm_app;
 GRANT SELECT,INSERT,UPDATE,DELETE ON app.quota_reservations TO msm_app;
 GRANT UPDATE(published_at,publish_attempts,last_published_at) ON app.outbox_events TO msm_app;
+
+CREATE FUNCTION app.validate_action_order() RETURNS trigger LANGUAGE plpgsql AS $order$
+DECLARE predecessor app.action_intents;
+BEGIN
+ IF NEW.depends_on_id IS NOT NULL THEN
+  SELECT * INTO predecessor FROM app.action_intents WHERE tenant_id=NEW.tenant_id AND id=NEW.depends_on_id;
+  IF NOT FOUND OR predecessor.account_id<>NEW.account_id OR predecessor.campaign_id<>NEW.campaign_id OR predecessor.step_no<>NEW.step_no-1 THEN
+   RAISE EXCEPTION 'INVALID_RECIPE_PREDECESSOR' USING ERRCODE='23514';
+  END IF;
+ END IF;
+ IF NEW.previous_execution_id IS NOT NULL THEN
+  SELECT * INTO predecessor FROM app.action_intents WHERE tenant_id=NEW.tenant_id AND id=NEW.previous_execution_id;
+  IF NOT FOUND OR predecessor.account_id<>NEW.account_id OR predecessor.execution_epoch IS NULL OR predecessor.execution_epoch<>NEW.execution_epoch OR predecessor.dispatch_seq IS NULL OR predecessor.dispatch_seq>=NEW.dispatch_seq OR predecessor.state<>'SUCCEEDED' THEN
+   RAISE EXCEPTION 'INVALID_EXECUTION_PREDECESSOR' USING ERRCODE='23514';
+  END IF;
+ END IF;
+ RETURN NEW;
+END $order$;
+CREATE TRIGGER action_order BEFORE INSERT OR UPDATE OF depends_on_id,previous_execution_id,execution_epoch,dispatch_seq ON app.action_intents FOR EACH ROW EXECUTE FUNCTION app.validate_action_order();

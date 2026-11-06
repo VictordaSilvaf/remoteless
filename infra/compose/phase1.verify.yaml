@@ -20,6 +20,8 @@ services:
       MSM_RUNTIME_DIR: /run/msm-runtime
       MSM_TEST_DB_HOST: postgres
       MSM_TEST_DB_PORT: "5432"
+      MSM_TEST_REDIS_HOST: redis
+      MSM_TEST_REDIS_PORT: "6379"
     volumes:
       - ${MSM_RUNTIME_DIR}/client:/run/msm-runtime/client
       - ${MSM_RUNTIME_DIR}/server/installation.json:/run/msm-runtime/server/installation.json:ro
@@ -46,6 +48,7 @@ services:
       XDG_CONFIG_HOME: /tmp/msm-config
       XDG_CACHE_HOME: /tmp/msm-cache
       MSM_VERIFY_WORKSPACE: ${MSM_VERIFY_WORKSPACE:-0}
+      MSM_VERIFY_ENGINE: ${MSM_VERIFY_ENGINE:-0}
     command: [scripts/dist/foundation-electron.js]
     volumes:
       - ${MSM_RUNTIME_DIR}/client:/run/msm-runtime/client:ro

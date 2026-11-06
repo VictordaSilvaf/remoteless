@@ -1,0 +1,13 @@
+.campaign-shell{max-width:1440px;margin:auto;padding:32px;color:var(--text,#dce4ee)}
+.campaign-shell header,.campaign-toolbar,.campaign-metrics{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.campaign-shell h1{margin:8px 0}.campaign-shell .panel{margin:24px 0}.campaign-shell fieldset{border:0;padding:0;margin:0;min-width:0}
+.campaign-shell fieldset>label,.campaign-shell .panel>label{display:block;margin:12px 0 6px}
+.campaign-shell input:not([type=checkbox]),.campaign-shell select,.campaign-shell textarea{display:block;width:100%;max-width:600px;padding:10px;border:1px solid #344458;background:#111c29;color:inherit;border-radius:6px;margin:6px 0 16px}
+.campaign-shell li{margin:8px 0}.campaign-shell li select{display:inline-block;width:auto;margin-right:12px}.campaign-shell small{display:block;font-size:12px;opacity:.75;margin-top:6px}
+.campaign-metrics{justify-content:flex-start;padding:16px;background:#152333;border:1px solid #344458;border-radius:8px}
+.campaign-check{display:flex;gap:10px;align-items:center;margin:10px 0}.campaign-check input{width:18px;height:18px;flex-shrink:0}
+.campaign-accounts{max-height:280px;overflow:auto;border:1px solid #344458;padding:12px;margin:18px 0;border-radius:6px}
+.campaign-toolbar{justify-content:flex-start;margin:16px 0}.campaign-plan{border:1px solid #65937f;background:#142b28;padding:20px;margin-top:24px;border-radius:8px}.campaign-plan ul{max-height:240px;overflow:auto}
+.campaign-table{width:100%;overflow-x:auto}.campaign-table table{width:100%;border-collapse:collapse;text-align:left}.campaign-table td,.campaign-table th{padding:12px;border-bottom:1px solid #344458;vertical-align:top}.campaign-table td button{display:block;margin-bottom:8px}
+.campaign-notice{padding:12px;border:1px solid #517b70;border-radius:6px}.campaign-shell dialog{max-width:560px;background:#182634;color:inherit;border:1px solid #52667d;border-radius:8px;padding:24px}.campaign-shell dialog::backdrop{background:#000a}
+@media(max-width:700px){.campaign-shell{padding:16px}.campaign-table td,.campaign-table th{padding:8px}}
